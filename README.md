@@ -23,7 +23,7 @@ GRUdle es un juego donde compites contra una IA (red neuronal GRU) para adivinar
 |---|---|---|
 | Ve la categoría |  Sí |  No |
 | Usa patrones lingüísticos | Limitado | Completo |
-| Aprende de pistas grises | | (Cat2) |
+| Aprende de pistas grises | Sí | (Cat2) |
 
 ---
 
@@ -57,33 +57,75 @@ duelo_palabras/
 
 ## Instalación y Uso
 
-### 1. Instalar dependencias
-```bash
-pip install -r requirements.txt
-# Para GPU (opcional):
-pip install tensorflow[and-cuda]
-```
+Sigue estos pasos para configurar el proyecto en tu máquina local de forma segura y limpia.
 
-### 2. Entrenar los modelos GRU (opcional)
+### 1. Crear y activar un entorno virtual
+Es altamente recomendable usar un entorno virtual para evitar conflictos entre las versiones de las librerías de este proyecto y otras que tengas en tu sistema.
+
+**En Windows:**
 ```bash
-# Entrenamiento básico
+# Crear el entorno
+python -m venv .venv
+
+# Activar el entorno
+.venv\Scripts\activate
+
+```
+En macOS / Linux:
+```
+Bash
+# Crear el entorno
+python3 -m venv .venv
+
+# Activar el entorno
+source .venv/bin/activate
+```
+> Nota: Sabrás que el entorno está activo porque aparecerá el texto (.venv) al inicio de tu terminal.
+
+### 2. Instalar dependencias
+Una vez activado el entorno, instala los paquetes necesarios (se recomienda Python 3.11):
+```
+Bash
+pip install -r requirements.txt
+```
+> (Opcional) Si tienes una tarjeta gráfica NVIDIA y quieres usarla para el entrenamiento:
+pip install tensorflow[and-cuda]
+
+### 3. Entrenar los modelos GRU (Opcional)
+El proyecto incluye modelos base, pero puedes re-entrenar la IA para que sea más competitiva o aprenda de nuevos vocabularios.
+```
+Bash
+# Entrenamiento rápido (cat1: 40 épocas, cat2: 50 épocas por defecto)
 python entrenar.py
 
-# Con más épocas para mejor rendimiento
+# Entrenamiento avanzado para máxima precisión
 python entrenar.py --epochs-cat1 80 --epochs-cat2 100
 
-# En Google Colab con GPU
+# Entrenamiento optimizado para Google Colab (con soporte GPU)
 python entrenar.py --colab --epochs-cat1 60 --epochs-cat2 80
+Sin entrenamiento previo: El juego puede funcionar mediante un motor heurístico, pero la experiencia real se obtiene con los modelos GRU cargados.
 ```
-
-> **Sin entrenamiento**: el juego funciona con un motor heurístico de búsqueda en vocabulario. Con los modelos GRU entrenados, la IA mejora significativamente.
-
-### 3. Lanzar el juego
-```bash
+### 4. Lanzar el juego
+Para iniciar la interfaz gráfica y comenzar el duelo:
+```
+Bash
 python main.py
 ```
+☁️ Uso en Google Colab
+Si prefieres no usar los recursos de tu PC para el entrenamiento, puedes asociar este repositorio a Colab:
 
----
+Sube el proyecto a tu cuenta de GitHub. (Asegúrate de incluir un archivo .gitignore con la línea .venv/ para no subir la carpeta del entorno virtual).
+
+En un cuaderno de Colab, clona el repositorio:
+
+Python
+!git clone [https://github.com/tu-usuario/duelo_palabras.git](https://github.com/tu-usuario/duelo_palabras.git)
+```
+%cd duelo_palabras
+!pip install -r requirements.txt
+!python entrenar.py --colab
+```
+Descarga los archivos de la carpeta model/pesos/ generados para usarlos localmente.
 
 ## Arquitectura de la IA
 
@@ -172,7 +214,7 @@ Luego extrae `pesos.zip` en la carpeta `model/pesos/` de tu instalación local.
 
 ## Requisitos
 
-- **Python** 3.9+
+- **Python** 3.11
 - **tkinter** (incluido en Python estándar)
 - **tensorflow** 2.12+ (solo para entrenar/usar GRU)
 - **numpy** 1.23+
