@@ -1,12 +1,12 @@
 # GRUdle-Deep-Learning-Game
 GRUdle es un juego donde compites contra una IA (red neuronal GRU) para adivinar una palabra oculta letra por letra. El humano conoce la categoría; la IA usa Deep Learning. Ofrece dos modos: uno de predicción secuencial básica y otro avanzado (multi-input) donde la IA memoriza letras acertadas de intentos previos para afinar su predicción.
 
-# ⚔ Duelo de Palabras
+# Duelo de Palabras
 ### Humano vs. Inteligencia Artificial — Adivina la Palabra
 
 ---
 
-## 🎮 Descripción
+## Descripción
 
 **Duelo de Palabras** es un juego competitivo donde un jugador humano se enfrenta a una red neuronal GRU en tiempo real. Ambos deben adivinar una palabra secreta que se revela letra por letra, turno a turno.
 
@@ -21,13 +21,13 @@ GRUdle es un juego donde compites contra una IA (red neuronal GRU) para adivinar
 ### Asimetría estratégica
 | | Humano | IA |
 |---|---|---|
-| Ve la categoría | ✅ Sí | ❌ No |
-| Usa patrones lingüísticos | Limitado | ✅ Completo |
-| Aprende de pistas grises | ✅ | ✅ (Cat2) |
+| Ve la categoría |  Sí |  No |
+| Usa patrones lingüísticos | Limitado | Completo |
+| Aprende de pistas grises | | (Cat2) |
 
 ---
 
-## 📁 Estructura del Proyecto
+## Estructura del Proyecto
 
 ```
 duelo_palabras/
@@ -85,7 +85,7 @@ python main.py
 
 ---
 
-## 🧠 Arquitectura de la IA
+## Arquitectura de la IA
 
 ### Categoría 1 — GRU Secuencial
 ```
@@ -108,24 +108,24 @@ Rama B: Pistas     →  Dense(32)            ──┘
 ```
 
 ### Feedback de colores
-- 🟢 **Verde**: Letra revelada por el juego (posición correcta, forzada)
-- 🔵 **Gris**: Letra existe en la palabra (posición desconocida)
-- ⬛ **Oscuro**: Letra no está en la palabra
+- **Verde**: Letra revelada por el juego (posición correcta, forzada)
+- **Gris**: Letra existe en la palabra (posición desconocida)
+- **Oscuro**: Letra no está en la palabra
 
 ---
 
-## 📊 Dataset
+## Dataset
 
 El archivo `dataset/palabras_es.json` contiene:
 
 | Categoría | Palabras |
 |-----------|----------|
-| 🦁 Animales | 80 palabras |
-| 🔧 Objetos | 80 palabras |
-| 👩‍⚕️ Profesiones | 80 palabras |
-| 🌿 Naturaleza | 80 palabras |
-| 🍕 Comida | 80 palabras |
-| 🏙️ Lugares | 80 palabras |
+| Animales | 80 palabras |
+| Objetos | 80 palabras |
+| Profesiones | 80 palabras |
+| Naturaleza | 80 palabras |
+| Comida | 80 palabras |
+| Lugares | 80 palabras |
 
 Cada palabra incluye: `longitud`, `frecuencia` (0-100), y categoría.
 
@@ -133,16 +133,16 @@ El campo `corpus_gru` contiene el vocabulario de entrenamiento para la red neuro
 
 ---
 
-## 🎯 Modos de Dificultad
+## Modos de Dificultad
 
 | Modo | IA recibe | Ventaja humano |
 |------|-----------|----------------|
-| 🔵 Básico (Cat1) | Solo letras reveladas | Categoría |
-| 🟡 Avanzado (Cat2) | Letras reveladas + pistas grises | Solo categoría |
+| Básico (Cat1) | Solo letras reveladas | Categoría |
+| Avanzado (Cat2) | Letras reveladas + pistas grises | Solo categoría |
 
 ---
 
-## 🛠 Google Colab
+## Google Colab
 
 Para entrenar con GPU gratuita en Google Colab:
 
@@ -170,7 +170,7 @@ Luego extrae `pesos.zip` en la carpeta `model/pesos/` de tu instalación local.
 
 ---
 
-## ⚙️ Requisitos
+## Requisitos
 
 - **Python** 3.9+
 - **tkinter** (incluido en Python estándar)
@@ -184,7 +184,7 @@ sudo apt-get install python3-tk
 
 ---
 
-## 📝 Licencia
+## Licencia
 
 Proyecto educativo de demostración de redes neuronales GRU aplicadas a juegos de palabras.
 
