@@ -486,6 +486,7 @@ class PantallaJuego(tk.Frame):
         self.entry.grid(row=0, column=0, sticky="ew", padx=(0,8))
         self.entry.bind("<KeyRelease>", self._on_key)
         self.entry.bind("<Return>", lambda e: self._enviar())
+        self.bind_all("<Key>", self._redirigir_tecla)
 
         self.btn_env = tk.Label(inp_inner, text="ENVIAR →",
                                  font=("Courier New",11,"bold"),
@@ -593,7 +594,7 @@ class PantallaJuego(tk.Frame):
         self._texto_actual = texto
         t = self.gestor.turno_actual
         self.p_humano._tablero.mostrar_intento(t, texto, self.gestor.letras_reveladas)
-
+    
     def _enviar(self):
         if self._bloqueado or self._humano_ok: return
         intento = self.evar.get().upper()
@@ -815,6 +816,30 @@ class PantallaJuego(tk.Frame):
         self.crono.detener()
         self.on_volver()
 
+    def _redirigir_tecla(self, event):
+        """Captura teclas globales y las escribe directamente en el entry."""
+        if not self.gestor or self._bloqueado or self._humano_ok:
+            return
+        # Ignorar teclas de control, modificadores y caracteres no imprimibles
+        if event.keysym in ("Return", "Tab", "Escape", "BackSpace",
+                             "Shift_L", "Shift_R", "Control_L", "Control_R",
+                             "Alt_L", "Alt_R", "Super_L", "Super_R",
+                             "caps", "Left", "Right", "Up", "Down",
+                             "Delete", "Home", "End", "Prior", "Next"):
+            if event.keysym == "BackSpace":
+                # Borrar último carácter manualmente
+                texto = self.evar.get()
+                self.evar.set(texto[:-1])
+                self._on_key(event)
+            return
+        # Solo caracteres imprimibles (letras)
+        if event.char and event.char.isprintable() and event.char.isalpha():
+            self.entry.focus()
+            texto_actual = self.evar.get()
+            lon = self.gestor.longitud_palabra if self.gestor else 5
+            if len(texto_actual) < lon:
+                self.evar.set(texto_actual + event.char)
+                self._on_key(event)
 
 # ── App ───────────────────────────────────────────────────────────────────────
 class App(tk.Tk):
