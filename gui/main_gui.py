@@ -17,24 +17,24 @@ DATASET_PATH = os.path.join(os.path.dirname(os.path.dirname(
 
 # ── Paleta ────────────────────────────────────────────────────────────────────
 C = {
-    "bg":        "#0D0D1A",
-    "panel":     "#12122A",
-    "carta":     "#1A1A35",
-    "input":     "#1E1E3A",
-    "verde":     "#00E87A",
-    "verde_d":   "#00B55F",
-    "gris":      "#5B6DA0",
-    "oscuro":    "#252545",
-    "dorado":    "#FFD700",
-    "dorado_d":  "#CC9900",
-    "rojo":      "#FF3355",
-    "azul":      "#00AAFF",
-    "blanco":    "#FFFFFF",
-    "gris_txt":  "#7880A0",
-    "borde":     "#252550",
-    "borde_a":   "#4040A0",
-    "humano":    "#FF6B35",
-    "ia":        "#00AAFF",
+    "bg":        "#1E2022",    # Fondo principal (imagen 1 - gris oscuro)
+    "panel":     "#2C3333",    # Paneles (imagen 2 - verde oscuro)
+    "carta":     "#395B64",    # Tableros (imagen 2 - verde medio)
+    "input":     "#52616B",    # Input (imagen 1 - gris medio)
+    "verde":     "#A5C9CA",    # Éxito (imagen 2 - verde claro)
+    "verde_d":   "#8FB5B6",    # Verde oscuro (derivado)
+    "gris":      "#6B7E8A",    # Letras grises (derivado)
+    "oscuro":    "#2C3333",    # Oscuro
+    "dorado":    "#F0F5F9",    # Títulos (imagen 1 - azul muy claro)
+    "dorado_d":  "#C9D6DF",    # Dorado oscuro (imagen 1 - gris azulado)
+    "rojo":      "#E07A5F",    # Error (rojo cálido)
+    "azul":      "#A5C9CA",    # IA
+    "blanco":    "#F0F5F9",    # Texto blanco (imagen 1)
+    "gris_txt":  "#C9D6DF",    # Texto gris (imagen 1)
+    "borde":     "#395B64",    # Bordes
+    "borde_a":   "#A5C9CA",    # Borde activo
+    "humano":    "#F0F5F9",    # Jugador
+    "ia":        "#A5C9CA",    # IA
 }
 
 ESTADO_COLOR = {
@@ -115,17 +115,70 @@ class Tablero(tk.Frame):
         self._build()
 
     def _build(self):
-        for w in self.winfo_children(): w.destroy()
+        for w in self.winfo_children(): 
+            w.destroy()
         self.casillas = []
         for r in range(self.filas):
             row_f = tk.Frame(self, bg=C["carta"])
-            row_f.pack(pady=self.GAP//2)
+            # No hacer pack aquí, se mostrarán dinámicamente
             fila = []
             for c in range(self.cols):
                 cas = Casilla(row_f)
                 cas.pack(side=tk.LEFT, padx=self.GAP//2)
                 fila.append(cas)
             self.casillas.append(fila)
+        
+        # Mostrar solo la primera fila al inicio
+        self.mostrar_filas_hasta(0)
+
+    def mostrar_filas_hasta(self, max_fila: int):
+        """Muestra solo las filas hasta el turno actual, oculta las futuras"""
+        for r, fila in enumerate(self.casillas):
+            if r <= max_fila:
+                # Mostrar esta fila
+                for cas in fila:
+                    cas.pack(side=tk.LEFT, padx=self.GAP//2)
+                # Asegurar que el frame contenedor esté visible
+                row_frame = fila[0].master
+                row_frame.pack(pady=self.GAP//2)
+            else:
+                # Ocultar esta fila
+                row_frame = fila[0].master
+                row_frame.pack_forget()
+    
+        self.update_idletasks()
+
+    def mostrar_siguiente_fila_con_animacion(self, fila_actual: int):
+        """Animación de destello tipo pop up - simple y efectiva"""
+        if fila_actual + 1 < len(self.casillas):
+            siguiente_fila = fila_actual + 1
+            row_frame = self.casillas[siguiente_fila][0].master
+            
+            row_frame.pack(pady=self.GAP//2)
+            
+            # Guardar colores originales y aplicar destello
+            colores_originales = []
+            for cas in self.casillas[siguiente_fila]:
+                colores_originales.append(cas.cget("bg"))
+                cas.config(bg=C["dorado"])  # Destello dorado
+                cas._draw()
+            
+            def pop_step(step=0):
+                if step < 3:
+                    # Alternar entre dorado y verde
+                    color = C["dorado"] if step % 2 == 0 else C["verde"]
+                    for cas in self.casillas[siguiente_fila]:
+                        cas.config(bg=color)
+                        cas._draw()
+                    self.after(80, lambda: pop_step(step+1))
+                else:
+                    # Restaurar colores
+                    for i, cas in enumerate(self.casillas[siguiente_fila]):
+                        cas.config(bg=colores_originales[i])
+                        cas._draw()
+                    self.update_idletasks()
+            
+            pop_step()
 
     def reconfigurar(self, cols: int):
         self.cols = cols; self._build()
@@ -144,6 +197,17 @@ class Tablero(tk.Frame):
             else:
                 cas.letra = ""; cas.estado = EstadoCasilla.ACTIVO; cas._draw()
 
+    def mostrar_input_usuario(self, fila: int, texto: str):
+        """Muestra SOLO lo que el usuario está escribiendo, sin mezclar letras reveladas."""
+        for col, cas in enumerate(self.casillas[fila]):
+            if col < len(texto):
+                cas.letra = texto[col]
+                cas.estado = EstadoCasilla.ACTIVO
+            else:
+                cas.letra = ""
+                cas.estado = EstadoCasilla.ACTIVO
+            cas._draw()
+
     def mostrar_intento_oculto(self, fila: int, longitud: int, reveladas: list):
         """Para la IA: muestra X en posiciones no reveladas."""
         for col, cas in enumerate(self.casillas[fila]):
@@ -155,7 +219,11 @@ class Tablero(tk.Frame):
     def revelar(self, fila: int, intento: str, colores: List[EstadoCasilla], oculto=False):
         def rev(col):
             if col < len(colores):
-                letra = "X" if oculto and colores[col] != EstadoCasilla.VERDE else intento[col]
+                # Si está en modo oculto (IA) y NO es verde, mostrar X
+                if oculto and colores[col] != EstadoCasilla.VERDE:
+                    letra = "X"
+                else:
+                    letra = intento[col]
                 self.casillas[fila][col].set_estado(colores[col], letra)
                 self.after(110, lambda: rev(col+1))
         rev(0)
@@ -176,6 +244,19 @@ class Tablero(tk.Frame):
                 cas.letra = reveladas[col]; cas.estado = EstadoCasilla.VERDE; cas._draw()
             else:
                 cas.letra = ""; cas.estado = EstadoCasilla.ACTIVO; cas._draw()
+
+    def limpiar_activa(self, fila: int, reveladas: list):
+        # Asegurar que la fila actual esté visible
+        self.mostrar_filas_hasta(fila)
+        
+        for col, cas in enumerate(self.casillas[fila]):
+            if col < len(reveladas) and reveladas[col] is not None:
+                cas.letra = reveladas[col]
+                cas.estado = EstadoCasilla.VERDE
+            else:
+                cas.letra = ""
+                cas.estado = EstadoCasilla.ACTIVO
+            cas._draw()
 
     def limpiar_activa_oculta(self, fila: int, reveladas: list):
         for col, cas in enumerate(self.casillas[fila]):
@@ -401,9 +482,14 @@ class PantallaMenu(tk.Frame):
     def _sel_modo(self, key):
         self.modo_var.set(key)
         for k, f in self._bots_modo.items():
-            col = C["azul"] if k==key else C["input"]
-            f.config(bg=col)
-            for ch in f.winfo_children(): ch.config(bg=col)
+            if k == key:
+                f.config(bg=C["blanco"])
+                for ch in f.winfo_children():
+                    ch.config(bg=C["blanco"], fg="#000000")
+            else:
+                f.config(bg=C["input"])
+                for ch in f.winfo_children():
+                    ch.config(bg=C["input"], fg="#000000")
 
     def _iniciar(self):
         self.on_iniciar(self.cat_var.get(), self.lon_var.get(), self.modo_var.get())
@@ -421,7 +507,6 @@ class PantallaJuego(tk.Frame):
         self._ia_ok        = False
         self._hilo_ia      = None
         self._texto_actual = ""
-        # Guardamos intentos reales de la IA (ocultos hasta el final)
         self._intentos_ia_reales: List[str] = []
         self._juego_terminado = False
         self._build()
@@ -480,16 +565,15 @@ class PantallaJuego(tk.Frame):
         inp_inner.pack(fill="x")
         inp_inner.columnconfigure(0, weight=1)
 
+        # Modificar esta parte:
         self.evar = tk.StringVar()
         self.entry = tk.Entry(inp_inner, textvariable=self.evar,
-                               font=("Courier New",18,"bold"),
-                               bg=C["input"], fg=C["blanco"],
-                               insertbackground=C["verde"], relief="flat")
+                            font=("Courier New",18,"bold"),
+                            bg=C["input"], fg=C["blanco"],
+                            insertbackground=C["verde"], relief="flat")
         self.entry.grid(row=0, column=0, sticky="ew", padx=(0,8))
         self.entry.bind("<KeyRelease>", self._on_key)
         self.entry.bind("<Return>", lambda e: self._enviar())
-        self.bind_all("<Return>", lambda e: self._enviar())
-        self.bind_all("<Key>", self._redirigir_tecla)
 
         self.btn_env = tk.Label(inp_inner, text="ENVIAR →",
                                  font=("Courier New",11,"bold"),
@@ -513,18 +597,10 @@ class PantallaJuego(tk.Frame):
         ahorcado = Ahorcado(panel, color=color)
         ahorcado.pack()
 
-        if not es_humano:
-            # Botón historial IA (inactivo durante el juego)
-            btn_h = tk.Label(panel, text="🔍 Ver historial IA",
-                              font=("Courier New",8),
-                              bg=C["input"], fg=C["gris_txt"],
-                              padx=8, pady=4, cursor="hand2")
-            btn_h.pack(pady=(4,2))
-            btn_h.bind("<Button-1>", lambda e: self._ver_historial_ia())
-            panel._btn_hist = btn_h
-
         tablero = Tablero(panel, filas=6, cols=5)
         tablero.pack(pady=6)
+        if not es_humano:
+            pass
 
         lbl_env = tk.Label(panel, text="", font=("Courier New",9),
                             bg=C["carta"], fg=C["verde"])
@@ -550,6 +626,9 @@ class PantallaJuego(tk.Frame):
         # Reconfigurar tableros
         self.p_humano._tablero.reconfigurar(longitud)
         self.p_ia._tablero.reconfigurar(longitud)
+        # Reiniciar tableros mostrando solo primera fila
+        self.p_humano._tablero.mostrar_filas_hasta(0)
+        self.p_ia._tablero.mostrar_filas_hasta(0)
 
         # Reset ahorcados
         self.p_humano._ahorcado.reset()
@@ -573,10 +652,22 @@ class PantallaJuego(tk.Frame):
         self._humano_ok  = False
         self._ia_ok      = False
         self._texto_actual = ""
-        self.evar.set("")
+        texto_inicial = ""
+        for letra in self.gestor.letras_reveladas:
+            texto_inicial += letra if letra is not None else ""
+        self.evar.set(texto_inicial)
+        self._texto_actual = texto_inicial
         self.entry.config(state="normal")
         self.btn_env.config(bg=C["verde"])
         self.entry.focus()
+                # Animar la aparición de la nueva fila (si es necesario)
+        if t > 0 and t <= self.p_humano._tablero.filas:
+            self.p_humano._tablero.mostrar_siguiente_fila_con_animacion(t-1)
+            self.p_ia._tablero.mostrar_siguiente_fila_con_animacion(t-1)
+        else:
+            # Primera fila, asegurar que solo la primera esté visible
+            self.p_humano._tablero.mostrar_filas_hasta(t)
+            self.p_ia._tablero.mostrar_filas_hasta(t)
         self.p_humano._lbl_env.config(text="")
         self.p_ia._lbl_env.config(text="🤖 Pensando...")
         self.lbl_estado.config(
@@ -606,29 +697,68 @@ class PantallaJuego(tk.Frame):
 
     # ── Interacción humano ────────────────────────────────────────────────────
     def _on_key(self, event):
-        if self._bloqueado: return
-        texto = ''.join(c for c in self.evar.get().upper() if c.isalpha())
+        if self._bloqueado: 
+            return
+        
+        texto = self.evar.get().upper()
+        reveladas = self.gestor.letras_reveladas
+        
+        # Filtrar solo letras
+        texto = ''.join(c for c in texto if c.isalpha())
+        
+        # Proteger posiciones con letras reveladas
+        nuevo_texto = []
+        for i, letra_revelada in enumerate(reveladas):
+            if letra_revelada is not None:
+                nuevo_texto.append(letra_revelada)
+            elif i < len(texto):
+                nuevo_texto.append(texto[i])
+            else:
+                nuevo_texto.append("")
+        
+        texto_final = ''.join(nuevo_texto)
         lon = self.gestor.longitud_palabra
-        texto = texto[:lon]
-        self.evar.set(texto)
-        self._texto_actual = texto
+        texto_final = texto_final[:lon]
+        
+        self.evar.set(texto_final)
+        self._texto_actual = texto_final
         t = self.gestor.turno_actual
-        self.p_humano._tablero.mostrar_intento(t, texto, self.gestor.letras_reveladas)
+        self.p_humano._tablero.mostrar_input_usuario(t, texto_final)
     
     def _enviar(self):
-        if self._bloqueado or self._humano_ok: return
+        if self._bloqueado or self._humano_ok: 
+            return
+        
         intento = self.evar.get().upper()
         lon = self.gestor.longitud_palabra
-        if len(intento) != lon:
+        
+        # Completar con letras reveladas
+        reveladas = self.gestor.letras_reveladas
+        intento_completo = []
+        for i in range(lon):
+            if reveladas[i] is not None:
+                intento_completo.append(reveladas[i])
+            elif i < len(intento) and intento[i]:
+                intento_completo.append(intento[i])
+            else:
+                intento_completo.append("")
+        
+        intento = ''.join(intento_completo)
+        
+        if len(intento) != lon or not all(c.isalpha() for c in intento):
             self.lbl_estado.config(
-                text=f"⚠  La palabra debe tener {lon} letras", fg=C["rojo"])
+                text=f"⚠ Completa todas las letras de la palabra", fg=C["rojo"])
             return
+        
         resultado = self.gestor.registrar_intento_humano(intento)
-        if resultado is None: return
+        if resultado is None: 
+            return
+        
         self._humano_ok = True
         self.entry.config(state="disabled")
         self.btn_env.config(bg=C["gris"])
         self.p_humano._lbl_env.config(text="✅ Enviado")
+        
         if self._ia_ok:
             self._cerrar_turno()
         else:
