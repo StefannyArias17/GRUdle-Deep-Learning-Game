@@ -55,7 +55,7 @@ duelo_palabras/
 
 ---
 
-## 🚀 Instalación y Uso
+## Instalación y Uso
 
 ### 1. Instalar dependencias
 ```bash
