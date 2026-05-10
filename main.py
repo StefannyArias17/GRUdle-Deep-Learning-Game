@@ -25,14 +25,19 @@ def main():
         sys.exit(1)
     print("✅ Dataset cargado")
 
-    # Verificar modelos entrenados (opcional)
-    modelo_path = os.path.join(ROOT, "model", "pesos", "gru_cat1.keras")
-    if os.path.exists(modelo_path):
-        print("✅ Modelos GRU encontrados")
+    modelo_n1 = os.path.join(ROOT, "model", "pesos", "gru_nivel1.keras")
+    modelo_n2 = os.path.join(ROOT, "model", "pesos", "mlp_nivel2.keras")
+    if os.path.exists(modelo_n1) and os.path.exists(modelo_n2):
+        print("✅ Modelos cargados: Nivel 1 (GRU) + Nivel 2 (MLP)")
+    elif os.path.exists(modelo_n1):
+        print("✅ Modelo Nivel 1 (GRU) cargado")
+        print("⚠️  Nivel 2 sin entrenar. Ejecuta: python entrenar.py --solo-n2")
+    elif os.path.exists(modelo_n2):
+        print("✅ Modelo Nivel 2 (MLP) cargado")
+        print("⚠️  Nivel 1 sin entrenar. Ejecuta: python entrenar.py --solo-n1")
     else:
-        print("⚠️  Modelos GRU no entrenados. Usando modo heurístico.")
-        print("   Para entrenar: python model/gru.py")
-    print()
+        print("⚠️  Sin modelos entrenados. Usando modo heurístico.")
+        print("   Para entrenar: python entrenar.py")
 
     # Lanzar GUI
     try:

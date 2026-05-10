@@ -1,35 +1,44 @@
 """
 Agente de Inteligencia Artificial para Duelo de Palabras.
+
+· Nivel 1 (GRU): recibe SOLO el patrón de letras reveladas de izquierda
+  a derecha. Nunca recibe información de colores previos.
+
+· Nivel 2 (MLP): recibe el estado completo de pistas acumuladas:
+  verdes (pos exacta), grises (existe, pos incorrecta), azules (existe,
+  letra doble), descartadas (no existen). No recibe prefijo revelado.
 """
 
 import os
 import time
 import random
 import threading
-from typing import List, Tuple, Callable, Optional
+from typing import List, Tuple, Callable, Optional, Dict
 
-from juego.logica import GestorJuego, HistorialIA
+from juego.logica import GestorJuego, HistorialIA, EstadoCasilla
 
 
 class AgenteIA:
-    DELAY_MIN  = 2.0
-    DELAY_MAX  = 8.0
+    DELAY_MIN = 2.0   # segundos mínimos antes de responder (simula "pensamiento")
+    DELAY_MAX = 8.0   # segundos máximos
 
-    def __init__(self, dataset_path: str, modo: str = "cat1"):
-        self.modo     = modo
+    def __init__(self, dataset_path: str, nivel: str = "nivel1"):
+        self.nivel    = nivel
         self.inferencia = None
-        self._inicializar_inferencia(dataset_path)
+        self._inicializar(dataset_path)
 
-    def _inicializar_inferencia(self, dataset_path: str):
+    def _inicializar(self, dataset_path: str):
         try:
             from model.gru import InferenciaGRU
             self.inferencia = InferenciaGRU(dataset_path)
-            if self.inferencia.disponible:
-                print("🤖 Agente IA: modelos GRU cargados correctamente.")
+            if self.nivel == "nivel1" and self.inferencia.disponible_n1:
+                print("🤖 IA Nivel 1: modelo GRU cargado.")
+            elif self.nivel == "nivel2" and self.inferencia.disponible_n2:
+                print("🤖 IA Nivel 2: modelo MLP cargado.")
             else:
-                print("🤖 Agente IA: usando modo heurístico (GRU no entrenado).")
+                print(f"🤖 IA {self.nivel}: modo heurístico (sin modelo entrenado).")
         except Exception as e:
-            print(f"🤖 Agente IA: fallback estadístico activado ({e}).")
+            print(f"🤖 IA: fallback estadístico ({e}).")
 
     def pensar_async(self, gestor: GestorJuego,
                      callback: Callable[[str, HistorialIA], None]):
@@ -42,183 +51,129 @@ class AgenteIA:
         return hilo
 
     def _pensar_y_llamar(self, gestor: GestorJuego,
-                         callback: Callable[[str, HistorialIA], None]):
-        t_inicio = time.time()
+                          callback: Callable[[str, HistorialIA], None]):
+        t0    = time.time()
         delay = random.uniform(self.DELAY_MIN, self.DELAY_MAX)
 
-        patron      = gestor.get_patron_actual()
-        longitud    = gestor.longitud_palabra
-        pistas      = gestor.get_letras_pista_ia()
-        descartadas = gestor.get_letras_descartadas_ia()
+        longitud = gestor.longitud_palabra
 
-        # Obtener candidatos crudos del modelo o heurística
-        candidatos_crudos = self._predecir(patron, longitud, pistas, descartadas)
+        if self.nivel == "nivel1":
+            candidatos, patron = self._pensar_nivel1(gestor, longitud)
+            pistas_log         = []
+        else:
+            candidatos, patron, pistas_log = self._pensar_nivel2(gestor, longitud)
 
-        # ── FILTRO DURO: siempre respetar el patrón revelado ──
-        candidatos = self._filtrar_por_patron(candidatos_crudos, patron, longitud)
+        # Filtro duro para nivel 1: respetar el patrón revelado
+        if self.nivel == "nivel1":
+            candidatos = self._filtrar_patron(candidatos, patron, longitud)
 
-        # Si el filtro eliminó todo, caer a heurística pura con patrón
         if not candidatos:
-            candidatos = self._heuristica(patron, longitud,
-                                          pistas if self.modo == "cat2" else [],
-                                          descartadas if self.modo == "cat2" else [])
-            candidatos = self._filtrar_por_patron(candidatos, patron, longitud)
+            candidatos = self._emergencia(gestor, longitud)
 
-        # Último recurso: buscar en vocabulario completo respetando patrón
-        if not candidatos:
-            candidatos = self._busqueda_forzada(patron, longitud, gestor)
+        t_calc = (time.time() - t0) * 1000
 
-        t_calculo = (time.time() - t_inicio) * 1000
+        # Esperar el resto del delay simulado
+        restante = delay - (time.time() - t0)
+        if restante > 0:
+            time.sleep(restante)
 
-        tiempo_restante = delay - (time.time() - t_inicio)
-        if tiempo_restante > 0:
-            time.sleep(tiempo_restante)
-
-        seleccionada = candidatos[0][0].upper() if candidatos else ("A" * longitud)[:longitud]
+        seleccionada = candidatos[0][0].upper() if candidatos else "A" * longitud
 
         historial = HistorialIA(
             turno        = gestor.turno_actual,
             patron       = patron,
-            letras_pista = pistas,
-            candidatos   = candidatos,
+            letras_pista = pistas_log,
+            candidatos   = candidatos[:5],
             seleccionada = seleccionada,
-            tiempo_ms    = t_calculo
+            tiempo_ms    = t_calc,
         )
         callback(seleccionada, historial)
 
-    def _predecir(self, patron: str, longitud: int,
-                  letras_pista: List[str],
-                  letras_descartadas: List[str]) -> List[Tuple[str, float]]:
+    # ── Nivel 1 ───────────────────────────────────────────────────────────────
+    def _pensar_nivel1(self, gestor: GestorJuego,
+                        longitud: int) -> Tuple[List[Tuple[str, float]], str]:
+        """
+        Solo usa el patrón de letras reveladas. NUNCA usa colores previos.
+        """
+        patron = gestor.get_patron_actual()  # ej. "G____"
+
         if self.inferencia:
             try:
-                if self.modo == "cat2":
-                    return self.inferencia.predecir_cat2(
-                        patron, longitud, letras_pista, letras_descartadas)
-                else:
-                    # Cat1: solo usa el patrón revelado, sin pistas grises
-                    return self.inferencia.predecir_cat1(patron, longitud)
+                return self.inferencia.predecir_nivel1(patron, longitud), patron
             except Exception as e:
-                print(f"⚠️  Error en inferencia GRU: {e}")
+                print(f"⚠️  Error GRU N1: {e}")
 
-        # Fallback: cat1 no usa pistas ni descartadas
-        if self.modo == "cat1":
-            return self._heuristica(patron, longitud, [], [])
-        return self._heuristica(patron, longitud, letras_pista, letras_descartadas)
+        # Fallback: buscar en vocabulario por patrón
+        vocab = self.inferencia.vocab_n1 if self.inferencia else []
+        from model.gru import _match_patron
+        cands = [(p, 1.0) for p in vocab
+                 if len(p) == longitud and _match_patron(p, patron.lower())]
+        random.shuffle(cands)
+        return cands[:8] or [("a"*longitud, 0.1)], patron
 
-    def _heuristica(self, patron: str, longitud: int,
-                    letras_pista: List[str],
-                    letras_descartadas: List[str]) -> List[Tuple[str, float]]:
+    # ── Nivel 2 ───────────────────────────────────────────────────────────────
+    def _pensar_nivel2(self, gestor: GestorJuego,
+                        longitud: int) -> Tuple[List[Tuple[str, float]], str, List[str]]:
+        """
+        Usa el estado completo de pistas acumuladas (verdes/grises/azules/desc).
+        Si es el primer turno (sin historial), elige una palabra aleatoria del vocab.
+        """
+        info = gestor.get_letras_ia_por_color()
+        verdes:      Dict[int, str] = info["verdes"]
+        grises:      List[str]      = info["grises"]
+        azules:      List[str]      = info["azules"]
+        descartadas: List[str]      = info["descartadas"]
+
+        pistas_log = grises + azules  # para el historial
+
+        # Turno inicial: no hay pistas → palabra aleatoria
+        if not verdes and not grises and not azules and not descartadas:
+            vocab = self.inferencia.vocab_n2 if self.inferencia else []
+            opts  = [p for p in vocab if len(p) == longitud]
+            if opts:
+                palabra = random.choice(opts)
+                return [(palabra, 1.0)], "inicial", pistas_log
+
         if self.inferencia:
-            vocab = self.inferencia.vocabulario
-        else:
-            vocab = ["gato", "perro", "mesa", "silla", "libro", "lapiz",
-                     "reloj", "bolso", "plato", "sopa", "vino", "copa",
-                     "arbol", "prado", "selva", "monte", "valle", "bosque",
-                     "azul", "verde", "rojo", "negro", "blanco", "gris"]
+            try:
+                cands = self.inferencia.predecir_nivel2(
+                    longitud, verdes, grises, azules, descartadas)
+                return cands, str(verdes), pistas_log
+            except Exception as e:
+                print(f"⚠️  Error MLP N2: {e}")
 
-        patron_lower      = patron.lower()
-        pistas_set        = set(l.lower() for l in letras_pista)
-        descartadas_set   = set(l.lower() for l in letras_descartadas)
-        candidatos        = []
+        # Fallback heurístico
+        from model.gru import _cumple_restricciones
+        vocab = self.inferencia.vocab_n2 if self.inferencia else []
+        cands = [(p, 1.0) for p in vocab
+                 if len(p) == longitud and
+                    _cumple_restricciones(p, verdes, grises, azules, descartadas)]
+        random.shuffle(cands)
+        return cands[:8] or [("a"*longitud, 0.1)], str(verdes), pistas_log
 
-        for palabra in vocab:
-            if len(palabra) != longitud:
-                continue
+    # ── Utilidades ────────────────────────────────────────────────────────────
+    def _filtrar_patron(self, candidatos: List[Tuple[str, float]],
+                         patron: str, longitud: int) -> List[Tuple[str, float]]:
+        from model.gru import _match_patron
+        patron_l = patron.lower()
+        return [(p, s) for p, s in candidatos
+                if len(p) == longitud and _match_patron(p, patron_l)]
 
-            match = True
-            for i, c in enumerate(patron_lower):
-                if i >= len(palabra):
-                    match = False
-                    break
-                if c != "_" and c.lower() != palabra[i]:
-                    match = False
-                    break
-            if not match:
-                continue
-
-            if any(l in palabra for l in descartadas_set):
-                continue
-
-            if not all(l in palabra for l in pistas_set):
-                continue
-
-            score = sum(1.0 for l in pistas_set if l in palabra) / max(1, len(pistas_set) + 1)
-            candidatos.append((palabra, score))
-
-        if not candidatos:
-            candidatos = [(p, 0.3) for p in vocab if len(p) == longitud]
-
-        candidatos.sort(key=lambda x: x[1], reverse=True)
-        return candidatos[:5]
-
-    def _palabra_aleatoria(self, longitud: int, gestor: GestorJuego) -> str:
-        try:
-            opciones = []
-            for cat in gestor.dataset["categorias"].values():
-                opciones.extend(p["palabra"].upper()
-                                for p in cat["palabras"]
-                                if p["longitud"] == longitud)
-            if opciones:
-                return random.choice(opciones)
-        except Exception:
-            pass
-        return ("A" * longitud)[:longitud]
-
-    def _filtrar_por_patron(self, candidatos: List[Tuple[str, float]],
-                             patron: str, longitud: int) -> List[Tuple[str, float]]:
-        """
-        Descarta cualquier candidato que no respete las letras ya reveladas.
-        Esta es la restricción más dura del juego: una letra verde es inamovible.
-        """
-        patron_lower = patron.lower()
-        validos = []
-        for palabra, prob in candidatos:
-            palabra_lower = palabra.lower()
-            if len(palabra_lower) != longitud:
-                continue
-            match = True
-            for pos, c in enumerate(patron_lower):
-                if c != '_' and c != palabra_lower[pos]:
-                    match = False
-                    break
-            if match:
-                validos.append((palabra, prob))
-        return validos
-
-    def _busqueda_forzada(self, patron: str, longitud: int,
-                        gestor: GestorJuego) -> List[Tuple[str, float]]:
-        """
-        Busca en todas las fuentes disponibles: vocabulario GRU + dataset completo.
-        Respeta estrictamente el patrón revelado.
-        """
-        # Construir vocabulario combinado: GRU + todas las categorías del dataset
+    def _emergencia(self, gestor: GestorJuego,
+                     longitud: int) -> List[Tuple[str, float]]:
+        """Último recurso: buscar en el dataset completo."""
         vocab = set()
-        if self.inferencia and self.inferencia.vocabulario:
-            for p in self.inferencia.vocabulario:
-                vocab.add(p.lower())
-
-        # Siempre buscar también en el dataset completo
         try:
             for cat in gestor.dataset["categorias"].values():
                 for p in cat["palabras"]:
-                    palabra = p["palabra"].lower()
-                    if len(palabra) == longitud:
-                        vocab.add(palabra)
+                    if p["longitud"] == longitud:
+                        vocab.add(p["palabra"].lower())
         except Exception:
             pass
-
-        patron_lower = patron.lower()
-        candidatos = []
-        for palabra in vocab:
-            if len(palabra) != longitud:
-                continue
-            match = True
-            for pos, c in enumerate(patron_lower):
-                if c != '_' and c != palabra[pos]:
-                    match = False
-                    break
-            if match:
-                candidatos.append((palabra, 0.1))
-
-        random.shuffle(candidatos)
-        return candidatos[:5]
+        if self.inferencia:
+            for p in (self.inferencia.vocab_n1 + self.inferencia.vocab_n2):
+                if len(p) == longitud:
+                    vocab.add(p)
+        cands = list(vocab)
+        random.shuffle(cands)
+        return [(p, 0.1) for p in cands[:5]] or [("a"*longitud, 0.0)]

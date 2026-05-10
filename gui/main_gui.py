@@ -40,6 +40,7 @@ C = {
 ESTADO_COLOR = {
     EstadoCasilla.VERDE:  (C["verde"],  "#000000"),
     EstadoCasilla.GRIS:   (C["gris"],   "#FFFFFF"),
+    EstadoCasilla.AZUL:   (C["azul"],   "#FFFFFF"),
     EstadoCasilla.OSCURO: (C["oscuro"], "#444466"),
     EstadoCasilla.VACIO:  (C["carta"],  "#FFFFFF"),
     EstadoCasilla.ACTIVO: (C["input"],  "#FFFFFF"),
@@ -64,7 +65,8 @@ class Casilla(tk.Canvas):
         self._rrect(2, 2, sz-2, sz-2, self.R, fill="#000000", outline="")
         borde = {EstadoCasilla.ACTIVO: C["borde_a"],
                  EstadoCasilla.VERDE:  C["verde"],
-                 EstadoCasilla.GRIS:   C["gris"]}.get(self.estado, C["borde"])
+                 EstadoCasilla.GRIS:   C["gris"],
+                 EstadoCasilla.AZUL:   C["azul"]}.get(self.estado, C["borde"])
         self._rrect(0, 0, sz-4, sz-4, self.R, fill=bg_, outline=borde, width=2)
         if self.letra:
             self.create_text((sz-4)//2, (sz-4)//2, text=self.letra.upper(),
@@ -285,7 +287,7 @@ class PantallaMenu(tk.Frame):
         self.on_iniciar = on_iniciar
         self.cat_var  = tk.StringVar()
         self.lon_var  = tk.IntVar(value=5)
-        self.modo_var = tk.StringVar(value="cat1")
+        self.modo_var = tk.StringVar(value="nivel1")
         self._build()
 
     def _build(self):
@@ -343,8 +345,8 @@ class PantallaMenu(tk.Frame):
         f_modo = tk.Frame(panel, bg=C["carta"]); f_modo.pack(fill="x", pady=(5,24))
         self._bots_modo = {}
         modos = [
-            ("cat1","🔵 Modo Básico","Solo letras reveladas secuencialmente"),
-            ("cat2","🟡 Modo Avanzado","Letras + pistas cromáticas (Transformer)"),
+            ("nivel1","🔵 Nivel 1 — GRU","Letras reveladas de izquierda a derecha"),
+            ("nivel2","🟡 Nivel 2 — MLP","Sin letras fijas: Wordle completo con colores"),
         ]
         for key, lbl, desc in modos:
             f = tk.Frame(f_modo, bg=C["input"], padx=12, pady=8, cursor="hand2")
@@ -356,7 +358,7 @@ class PantallaMenu(tk.Frame):
             for w in [f]+list(f.winfo_children()):
                 w.bind("<Button-1>", lambda e, k=key: self._sel_modo(k))
             self._bots_modo[key] = f
-        self._sel_modo("cat1")
+        self._sel_modo("nivel1")
 
         # Botón iniciar
         btn = tk.Canvas(panel, width=260, height=50,
@@ -538,11 +540,11 @@ class PantallaJuego(tk.Frame):
     # ── Iniciar partida ───────────────────────────────────────────────────────
     def iniciar(self, categoria: str, longitud: int, modo: str):
         self.gestor = GestorJuego(DATASET_PATH)
-        self.agente = AgenteIA(DATASET_PATH, modo=modo)
+        self.agente = AgenteIA(DATASET_PATH, nivel=modo)
         self._intentos_ia_reales = []
         self._juego_terminado = False
 
-        palabra = self.gestor.iniciar_partida(categoria, longitud)
+        palabra = self.gestor.iniciar_partida(categoria, longitud, nivel=modo)
         print(f"[DEBUG] Palabra secreta: {palabra}")
 
         # Reconfigurar tableros
