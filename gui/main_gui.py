@@ -585,6 +585,23 @@ class PantallaJuego(tk.Frame):
         self.p_humano._tablero.limpiar_activa(t, rev)
         self.p_ia._tablero.limpiar_activa_oculta(t, rev)
 
+        # Si el humano ya ganó: bloquear su input y pintar su fila verde
+        if self.gestor.humano.gano:
+            self._humano_ok = True
+            self.entry.config(state="disabled")
+            self.btn_env.config(bg=C["gris"])
+            self.p_humano._lbl_env.config(text="✅ ¡Ya adivinaste!")
+            palabra = self.gestor.palabra_secreta
+            for col, cas in enumerate(self.p_humano._tablero.casillas[t]):
+                cas.set_estado(EstadoCasilla.VERDE, palabra[col], animar=False)
+
+        # Si la IA ya ganó: marcar su fila verde (pero _lanzar_ia gestiona el hilo)
+        if self.gestor.ia.gano:
+            palabra = self.gestor.palabra_secreta
+            for col, cas in enumerate(self.p_ia._tablero.casillas[t]):
+                cas.set_estado(EstadoCasilla.VERDE, palabra[col], animar=False)
+        # Nota: NO se pone self._ia_ok = True aquí, eso lo hace _lanzar_ia
+
     # ── Interacción humano ────────────────────────────────────────────────────
     def _on_key(self, event):
         if self._bloqueado: return
@@ -617,9 +634,15 @@ class PantallaJuego(tk.Frame):
 
     # ── IA ────────────────────────────────────────────────────────────────────
     def _lanzar_ia(self):
-        if self.gestor and self.agente:
-            self._hilo_ia = self.agente.pensar_async(
-                self.gestor, self._cb_ia)
+        if not self.gestor or not self.agente:
+            return
+        if self.gestor.ia.gano:
+            # IA ya ganó: se auto-marca lista, no juega más
+            self._ia_ok = True
+            self.p_ia._lbl_env.config(text="✅ ¡IA ya adivinó!")
+        else:
+            # IA sigue jugando aunque el humano haya ganado
+            self._hilo_ia = self.agente.pensar_async(self.gestor, self._cb_ia)
 
     def _cb_ia(self, palabra: str, historial: HistorialIA):
         self.after(0, lambda: self._proc_ia(palabra, historial))
@@ -657,41 +680,42 @@ class PantallaJuego(tk.Frame):
         else:
             self._cerrar_turno()
 
-    # ── Cierre de turno ───────────────────────────────────────────────────────
+    # ── Cierre de turno ─────────────────────
     def _cerrar_turno(self):
         if self._bloqueado: return
         self._bloqueado = True
         self.crono.detener()
         t = self.gestor.turno_actual
 
-        # Revelar humano
-        if self.gestor.humano.feedbacks:
-            fb_h = self.gestor.humano.feedbacks[-1]
+        # Revelar resultado del humano
+        if self.gestor.humano.feedbacks and not self.gestor.humano.gano:
+            fb_h  = self.gestor.humano.feedbacks[-1]
             int_h = self.gestor.humano.intentos[-1]
             self.p_humano._tablero.revelar(t, int_h, fb_h, oculto=False)
+        elif self.gestor.humano.gano:
+            # El humano acertó este turno: iluminar en verde
+            palabra = self.gestor.palabra_secreta
+            self.p_humano._tablero.iluminar_victoria(t, palabra)
 
-        # Revelar IA (oculto = X salvo verdes)
-        if self.gestor.ia.feedbacks:
-            fb_ia = self.gestor.ia.feedbacks[-1]
+        # Revelar resultado de la IA
+        if self.gestor.ia.feedbacks and not self.gestor.ia.gano:
+            fb_ia  = self.gestor.ia.feedbacks[-1]
             int_ia = self.gestor.ia.intentos[-1]
             self.p_ia._tablero.revelar(t, int_ia, fb_ia, oculto=True)
+        elif self.gestor.ia.gano:
+            palabra = self.gestor.palabra_secreta
+            self.p_ia._tablero.iluminar_victoria(t, palabra)
 
-        # Avanzar turno en la lógica
+        # Avanzar lógica
         self.gestor.avanzar_turno()
 
-        # Actualizar ahorcados DESPUÉS de avanzar (errores ya actualizados)
+        # Actualizar ahorcados
         self.p_humano._ahorcado.set_errores(self.gestor.humano.errores)
         self.p_ia._ahorcado.set_errores(self.gestor.ia.errores)
 
         delay = 1600
+
         if self.gestor.is_game_over():
-            # Si alguien ganó, iluminar su fila en verde
-            ganador = self.gestor.get_ganador()
-            palabra = self.gestor.palabra_secreta
-            if ganador in ("humano", "empate") and self.gestor.humano.gano:
-                self.after(400, lambda: self.p_humano._tablero.iluminar_victoria(t, palabra))
-            if ganador in ("ia", "empate") and self.gestor.ia.gano:
-                self.after(400, lambda: self.p_ia._tablero.iluminar_victoria(t, palabra))
             self.after(delay + 600, self._resultado_final)
         else:
             self.after(delay, self._sig_turno)

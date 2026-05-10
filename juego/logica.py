@@ -150,11 +150,17 @@ class GestorJuego:
         return resultado
 
     def avanzar_turno(self):
-        # Solo suma error si NO ganó
         if not self.humano.gano:
-            self.humano.errores += 1
+            if not self.humano_envio:
+                self.humano.errores += 1
+            elif self.intento_humano_pendiente != self.palabra_secreta:
+                self.humano.errores += 1
+
         if not self.ia.gano:
-            self.ia.errores += 1
+            if not self.ia_envio:
+                self.ia.errores += 1
+            elif self.intento_ia_pendiente != self.palabra_secreta:
+                self.ia.errores += 1
 
         self.turno_actual += 1
         self.humano_envio = False
@@ -165,17 +171,18 @@ class GestorJuego:
         if self.turno_actual < self.MAX_TURNOS:
             self._revelar_siguiente_letra()
 
-        # FIN: alguien ganó => termina inmediatamente
-        if self.humano.gano or self.ia.gano:
+        # Termina SOLO si ambos ganaron
+        if self.humano.gano and self.ia.gano:
+            self.estado = "finalizado"
+            return
+
+        # Termina si se agotaron todos los turnos
+        if self.turno_actual >= self.MAX_TURNOS:
             if not self.humano.gano:
                 self.humano.perdio = True
             if not self.ia.gano:
                 self.ia.perdio = True
             self.estado = "finalizado"
-        elif self.turno_actual >= self.MAX_TURNOS:
-            self.humano.perdio = True
-            self.ia.perdio     = True
-            self.estado        = "finalizado"
 
     def get_categorias(self) -> List[Dict]:
         return [
