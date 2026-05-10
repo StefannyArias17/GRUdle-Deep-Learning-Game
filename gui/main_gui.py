@@ -486,6 +486,7 @@ class PantallaJuego(tk.Frame):
         self.entry.grid(row=0, column=0, sticky="ew", padx=(0,8))
         self.entry.bind("<KeyRelease>", self._on_key)
         self.entry.bind("<Return>", lambda e: self._enviar())
+        self.bind_all("<Return>", lambda e: self._enviar())
         self.bind_all("<Key>", self._redirigir_tecla)
 
         self.btn_env = tk.Label(inp_inner, text="ENVIAR →",
