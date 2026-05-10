@@ -22,7 +22,11 @@
     "enero","febrero","marzo","abril","mayo","junio","julio","agosto",
     "lunes","martes","miercoles","jueves","viernes","sabado","domingo",
     "norte","sur","este","oeste","arriba","abajo","dentro","fuera","cerca","lejos",
-    "grande","pequeño","largo","corto","rapido","lento","fuerte","debil","rico","pobre"
+    "grande","pequeño","largo","corto","rapido","lento","fuerte","debil","rico","pobre",
+    "zorro","cerdo","cabra","oveja","burro","cebra","puma","nutria","castor",
+    "cuervo","halcon","tucan","foca","orca","atun","trucha","abeja","araña",
+    "mosca","grillo","gusano","rana","sapo","loro","tigre","leon","mono",
+    "jirafa","ciervo","aguila","paloma","conejo","salmon","coral"
   ],
   "categorias": {
     "animales": {

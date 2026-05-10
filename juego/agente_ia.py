@@ -46,32 +46,44 @@ class AgenteIA:
         t_inicio = time.time()
         delay = random.uniform(self.DELAY_MIN, self.DELAY_MAX)
 
-        patron     = gestor.get_patron_actual()
-        longitud   = gestor.longitud_palabra
-        pistas     = gestor.get_letras_pista_ia()
+        patron      = gestor.get_patron_actual()
+        longitud    = gestor.longitud_palabra
+        pistas      = gestor.get_letras_pista_ia()
         descartadas = gestor.get_letras_descartadas_ia()
 
-        candidatos = self._predecir(patron, longitud, pistas, descartadas)
+        # Obtener candidatos crudos del modelo o heurística
+        candidatos_crudos = self._predecir(patron, longitud, pistas, descartadas)
+
+        # ── FILTRO DURO: siempre respetar el patrón revelado ──
+        candidatos = self._filtrar_por_patron(candidatos_crudos, patron, longitud)
+
+        # Si el filtro eliminó todo, caer a heurística pura con patrón
+        if not candidatos:
+            candidatos = self._heuristica(patron, longitud,
+                                          pistas if self.modo == "cat2" else [],
+                                          descartadas if self.modo == "cat2" else [])
+            candidatos = self._filtrar_por_patron(candidatos, patron, longitud)
+
+        # Último recurso: buscar en vocabulario completo respetando patrón
+        if not candidatos:
+            candidatos = self._busqueda_forzada(patron, longitud, gestor)
+
         t_calculo = (time.time() - t_inicio) * 1000
 
         tiempo_restante = delay - (time.time() - t_inicio)
         if tiempo_restante > 0:
             time.sleep(tiempo_restante)
 
-        if candidatos:
-            seleccionada = candidatos[0][0].upper()
-        else:
-            seleccionada = self._palabra_aleatoria(longitud, gestor)
+        seleccionada = candidatos[0][0].upper() if candidatos else ("A" * longitud)[:longitud]
 
         historial = HistorialIA(
-            turno       = gestor.turno_actual,
-            patron      = patron,
+            turno        = gestor.turno_actual,
+            patron       = patron,
             letras_pista = pistas,
-            candidatos  = candidatos,
+            candidatos   = candidatos,
             seleccionada = seleccionada,
-            tiempo_ms   = t_calculo
+            tiempo_ms    = t_calculo
         )
-
         callback(seleccionada, historial)
 
     def _predecir(self, patron: str, longitud: int,
@@ -83,10 +95,14 @@ class AgenteIA:
                     return self.inferencia.predecir_cat2(
                         patron, longitud, letras_pista, letras_descartadas)
                 else:
+                    # Cat1: solo usa el patrón revelado, sin pistas grises
                     return self.inferencia.predecir_cat1(patron, longitud)
             except Exception as e:
                 print(f"⚠️  Error en inferencia GRU: {e}")
 
+        # Fallback: cat1 no usa pistas ni descartadas
+        if self.modo == "cat1":
+            return self._heuristica(patron, longitud, [], [])
         return self._heuristica(patron, longitud, letras_pista, letras_descartadas)
 
     def _heuristica(self, patron: str, longitud: int,
@@ -147,3 +163,62 @@ class AgenteIA:
         except Exception:
             pass
         return ("A" * longitud)[:longitud]
+
+    def _filtrar_por_patron(self, candidatos: List[Tuple[str, float]],
+                             patron: str, longitud: int) -> List[Tuple[str, float]]:
+        """
+        Descarta cualquier candidato que no respete las letras ya reveladas.
+        Esta es la restricción más dura del juego: una letra verde es inamovible.
+        """
+        patron_lower = patron.lower()
+        validos = []
+        for palabra, prob in candidatos:
+            palabra_lower = palabra.lower()
+            if len(palabra_lower) != longitud:
+                continue
+            match = True
+            for pos, c in enumerate(patron_lower):
+                if c != '_' and c != palabra_lower[pos]:
+                    match = False
+                    break
+            if match:
+                validos.append((palabra, prob))
+        return validos
+
+    def _busqueda_forzada(self, patron: str, longitud: int,
+                        gestor: GestorJuego) -> List[Tuple[str, float]]:
+        """
+        Busca en todas las fuentes disponibles: vocabulario GRU + dataset completo.
+        Respeta estrictamente el patrón revelado.
+        """
+        # Construir vocabulario combinado: GRU + todas las categorías del dataset
+        vocab = set()
+        if self.inferencia and self.inferencia.vocabulario:
+            for p in self.inferencia.vocabulario:
+                vocab.add(p.lower())
+
+        # Siempre buscar también en el dataset completo
+        try:
+            for cat in gestor.dataset["categorias"].values():
+                for p in cat["palabras"]:
+                    palabra = p["palabra"].lower()
+                    if len(palabra) == longitud:
+                        vocab.add(palabra)
+        except Exception:
+            pass
+
+        patron_lower = patron.lower()
+        candidatos = []
+        for palabra in vocab:
+            if len(palabra) != longitud:
+                continue
+            match = True
+            for pos, c in enumerate(patron_lower):
+                if c != '_' and c != palabra[pos]:
+                    match = False
+                    break
+            if match:
+                candidatos.append((palabra, 0.1))
+
+        random.shuffle(candidatos)
+        return candidatos[:5]

@@ -57,15 +57,30 @@ def generar_datos_cat1(vocabulario: List[str]) -> Tuple[np.ndarray, np.ndarray]:
     X, y = [], []
     for idx, palabra in enumerate(vocabulario):
         n = len(palabra)
+
+        # Turno 0: todo vacío
+        X.append(palabra_a_vector('_' * n))
+        y.append(idx)
+
+        # Turnos 1..n: revelar letra por letra de izquierda a derecha
         for reveal_hasta in range(1, n + 1):
             patron = list('_' * n)
             for i in range(reveal_hasta):
                 patron[i] = palabra[i]
             X.append(palabra_a_vector(''.join(patron)))
             y.append(idx)
-    for idx, palabra in enumerate(vocabulario):
-        X.append(palabra_a_vector('_' * len(palabra)))
-        y.append(idx)
+
+        # Muestras extra: patrones con letras intermedias reveladas
+        # Esto refuerza que el modelo respete posiciones fijas
+        for _ in range(3):
+            n_revelar = random.randint(1, n)
+            posiciones = sorted(random.sample(range(n), n_revelar))
+            patron = list('_' * n)
+            for pos in posiciones:
+                patron[pos] = palabra[pos]
+            X.append(palabra_a_vector(''.join(patron)))
+            y.append(idx)
+
     return np.array(X, dtype=np.int32), np.array(y, dtype=np.int32)
 
 
@@ -159,14 +174,17 @@ def entrenar(dataset_path: str, epochs_cat1: int = 40, epochs_cat2: int = 50,
     with open(dataset_path, 'r', encoding='utf-8') as f:
         ds = json.load(f)
 
-    vocabulario = ds.get("corpus_gru", [])
-    if not vocabulario:
-        for cat in ds["categorias"].values():
-            for p in cat["palabras"]:
-                vocabulario.append(p["palabra"])
-        vocabulario = sorted(set(vocabulario))
+    # Tomar corpus_gru como base
+    vocabulario = list(ds.get("corpus_gru", []))
 
+    # Añadir TODAS las palabras del dataset de todas las categorías
+    for cat in ds["categorias"].values():
+        for p in cat["palabras"]:
+            vocabulario.append(p["palabra"].lower())
+
+    vocabulario = sorted(set(vocabulario))
     vocabulario = [p for p in vocabulario if 4 <= len(p) <= 6]
+
     vocab_size = len(vocabulario)
 
     with open(VOCAB_PATH, 'w', encoding='utf-8') as f:
@@ -246,12 +264,31 @@ class InferenciaGRU:
         if self.modelo_cat1 and self.disponible:
             x = np.array([palabra_a_vector(patron)], dtype=np.int32)
             probs = self.modelo_cat1.predict(x, verbose=0)[0]
-            top_idx = np.argsort(probs)[-top_k:][::-1]
-            candidatos = [(self.vocabulario[i], float(probs[i]))
-                          for i in top_idx
-                          if i < len(self.vocabulario) and len(self.vocabulario[i]) == longitud]
+            top_idx = np.argsort(probs)[::-1]  # ordenar todas, no solo top_k
+
+            candidatos = []
+            patron_lower = patron.lower()
+            for i in top_idx:
+                if i >= len(self.vocabulario):
+                    continue
+                palabra = self.vocabulario[i]
+                if len(palabra) != longitud:
+                    continue
+                # ── FILTRO CRÍTICO: respetar letras reveladas ──
+                match = True
+                for pos, c in enumerate(patron_lower):
+                    if c != '_' and (pos >= len(palabra) or c != palabra[pos]):
+                        match = False
+                        break
+                if not match:
+                    continue
+                candidatos.append((palabra, float(probs[i])))
+                if len(candidatos) >= top_k:
+                    break
+
             if candidatos:
                 return candidatos
+
         return self._fallback(patron, longitud, [], [])
 
     def predecir_cat2(self, patron: str, longitud: int, letras_pista: List[str],
