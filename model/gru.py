@@ -175,13 +175,10 @@ def entrenar(dataset_path: str, epochs_cat1: int = 40, epochs_cat2: int = 50,
         ds = json.load(f)
 
     # Tomar corpus_gru como base
-    vocabulario = list(ds.get("corpus_gru", []))
-
-    # Añadir TODAS las palabras del dataset de todas las categorías
+    vocabulario = []
     for cat in ds["categorias"].values():
         for p in cat["palabras"]:
             vocabulario.append(p["palabra"].lower())
-
     vocabulario = sorted(set(vocabulario))
     vocabulario = [p for p in vocabulario if 4 <= len(p) <= 6]
 
@@ -237,16 +234,22 @@ class InferenciaGRU:
         self._cargar_modelos()
 
     def _cargar_vocabulario(self, dataset_path: str):
+        # Siempre cargar desde el dataset completo, ignorar corpus_gru
+        with open(dataset_path, 'r', encoding='utf-8') as f:
+            ds = json.load(f)
+        for cat in ds["categorias"].values():
+            for p in cat["palabras"]:
+                self.vocabulario.append(p["palabra"].lower())
+        self.vocabulario = sorted(set(
+            p for p in self.vocabulario if 4 <= len(p) <= 6
+        ))
+        # Si existe vocabulario.json guardado del entrenamiento, usarlo
+        # solo si fue generado con el nuevo sistema (mismo tamaño o más)
         if os.path.exists(VOCAB_PATH):
             with open(VOCAB_PATH, 'r', encoding='utf-8') as f:
-                self.vocabulario = json.load(f)
-        else:
-            with open(dataset_path, 'r', encoding='utf-8') as f:
-                ds = json.load(f)
-            for cat in ds["categorias"].values():
-                for p in cat["palabras"]:
-                    self.vocabulario.append(p["palabra"])
-            self.vocabulario = sorted(set(self.vocabulario))
+                guardado = json.load(f)
+            if len(guardado) >= len(self.vocabulario):
+                self.vocabulario = guardado
 
     def _cargar_modelos(self):
         try:
