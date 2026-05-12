@@ -1,7 +1,13 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
+*.pyc
 *.py[codz]
 *$py.class
+
+# Ignorar modelos y pesos (solo subimos el código)
+model/pesos/
+*.keras
+*.json
 
 # C extensions
 *.so
