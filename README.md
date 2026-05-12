@@ -65,6 +65,7 @@ Es altamente recomendable usar un entorno virtual para evitar conflictos entre l
 ```bash
 # Crear el entorno
 python -m venv .venv
+py -3.11 -m venv .venv
 
 # Activar el entorno
 .venv\Scripts\activate
