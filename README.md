@@ -95,6 +95,9 @@ El proyecto incluye modelos base, pero puedes re-entrenar la IA para que sea má
 ```
 Bash
 # Entrenamiento rápido (cat1: 40 épocas, cat2: 50 épocas por defecto)
+
+Ahora: python model/gru.py
+
 python entrenar.py
 
 # Entrenamiento avanzado para máxima precisión
