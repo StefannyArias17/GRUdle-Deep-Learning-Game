@@ -5,29 +5,7 @@
     "total_palabras": 480,
     "descripcion": "Dataset de palabras en español para Duelo de Palabras"
   },
-  "corpus_gru": [
-    "gato","perro","mesa","silla","libro","reloj","bolso","plato","arbol","valle",
-    "prado","selva","monte","bosque","azul","verde","rojo","negro","blanco","gris",
-    "luna","sol","mar","rio","lago","isla","nube","viento","lluvia","nieve",
-    "pan","leche","agua","vino","cafe","zumo","carne","pollo","pesca","fruta",
-    "rosa","lirio","palma","cedro","olivo","sauce","roble","pino","abeto","haya",
-    "lobo","oso","ciervo","aguila","paloma","serpiente","cocodrilo","elefante",
-    "cama","sofa","silla","puerta","suelo","techo","pared","balcon","jardin",
-    "coche","tren","barco","avion","moto","bici","taxi","metro","bus","camion",
-    "medico","maestro","piloto","juez","actor","pintor","musico","poeta","chef",
-    "amor","miedo","rabia","alegria","pena","calma","pausa","vigor","fuerza",
-    "azucar","harina","manteca","levadura","canela","pimienta","oregano","tomillo",
-    "piano","violin","guitarra","flauta","trompeta","tambor","arpa","organo",
-    "futbol","tenis","boxeo","natacion","esqui","ciclismo","atletismo","rugby",
-    "enero","febrero","marzo","abril","mayo","junio","julio","agosto",
-    "lunes","martes","miercoles","jueves","viernes","sabado","domingo",
-    "norte","sur","este","oeste","arriba","abajo","dentro","fuera","cerca","lejos",
-    "grande","pequeño","largo","corto","rapido","lento","fuerte","debil","rico","pobre",
-    "zorro","cerdo","cabra","oveja","burro","cebra","puma","nutria","castor",
-    "cuervo","halcon","tucan","foca","orca","atun","trucha","abeja","araña",
-    "mosca","grillo","gusano","rana","sapo","loro","tigre","leon","mono",
-    "jirafa","ciervo","aguila","paloma","conejo","salmon","coral"
-  ],
+
   "categorias": {
     "animales": {
       "nombre_display": "Animales",

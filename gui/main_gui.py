@@ -483,7 +483,7 @@ class PantallaMenu(tk.Frame):
         linea.pack(pady=(0,8))
         linea.create_rectangle(0, 0, 40, 4, fill=C["carmesi"], outline="")
 
-        tk.Label(titulo_frame, text="DUELO DE PALABRAS",
+        tk.Label(titulo_frame, text="GRUdle",
                  font=("Courier New", 32, "bold"),
                  bg=C["bg"], fg=C["blanco"]).pack()
         tk.Label(titulo_frame, text="Humano  \u2694  Máquina Entrenada",
