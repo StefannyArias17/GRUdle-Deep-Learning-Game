@@ -324,15 +324,17 @@ class Tablero(tk.Frame):
             else:
                 cas.letra = "X"; cas.estado = EstadoCasilla.ACTIVO; cas._draw()
 
-    def revelar(self, fila: int, intento: str, colores: List[EstadoCasilla], oculto=False):
+    def revelar(self, fila: int, intento: str, colores: List[EstadoCasilla],
+                oculto=False, reveladas: list = None, nivel: str = "nivel1"):
         def rev(col):
             if col < len(colores):
-                if oculto and colores[col] != EstadoCasilla.VERDE:
-                    letra = "X"
+                if oculto:
+                    # Nunca mostrar letras en el tablero de la IA — solo colores
+                    letra = ""
                 else:
                     letra = intento[col]
                 self.casillas[fila][col].set_estado(colores[col], letra)
-                self.after(110, lambda: rev(col+1))
+                self.after(110, lambda: rev(col + 1))
         rev(0)
 
     def iluminar_victoria(self, fila: int, palabra: str):
@@ -344,7 +346,9 @@ class Tablero(tk.Frame):
                 self.after(80, lambda: il(col+1))
         il(0)
 
-    def limpiar_activa(self, fila: int, reveladas: list):
+    def limpiar_activa(self, fila: int, reveladas: list, congelar: bool = False):
+        if congelar:
+            return  # tablero congelado, no tocar nada
         self.mostrar_filas_hasta(fila)
         for col, cas in enumerate(self.casillas[fila]):
             if col < len(reveladas) and reveladas[col] is not None:
@@ -353,13 +357,13 @@ class Tablero(tk.Frame):
                 cas.letra = ""; cas.estado = EstadoCasilla.ACTIVO
             cas._draw()
 
-    def limpiar_activa_oculta(self, fila: int, reveladas: list):
+    def limpiar_activa_oculta(self, fila: int, reveladas: list, nivel: str = "nivel1"):
+        # En nivel 1, solo mostramos las letras reveladas de filas ANTERIORES (ya jugadas),
+        # nunca la nueva letra del turno en curso — eso sería darle pista antes de jugar.
+        # Las posiciones confirmadas de turnos anteriores se ven en sus propias filas ya reveladas.
+        # La fila activa siempre arranca vacía para la IA.
         for col, cas in enumerate(self.casillas[fila]):
-            if col < len(reveladas) and reveladas[col] is not None:
-                cas.letra = reveladas[col]; cas.estado = EstadoCasilla.VERDE; cas._draw()
-            else:
-                cas.letra = "X"; cas.estado = EstadoCasilla.ACTIVO; cas._draw()
-
+            cas.letra = ""; cas.estado = EstadoCasilla.ACTIVO; cas._draw()
 
 class Ahorcado(tk.Canvas):
     W, H = 110, 140
@@ -777,58 +781,86 @@ class PantallaJuego(tk.Frame):
         self._humano_ok    = False
         self._ia_ok        = False
         self._texto_actual = ""
+
+        # Definir rev ANTES de usarla en cualquier lugar
+        rev = self.gestor.letras_reveladas
+
+        # Rellenar el Entry con las letras reveladas del turno actual
         texto_inicial = []
-        for i, letra in enumerate(self.gestor.letras_reveladas):
-            if letra is not None:
-                texto_inicial.append(letra)
-            else:
-                texto_inicial.append("")   # espacio vacío para las no reveladas
+        for i, letra in enumerate(rev):
+            texto_inicial.append(letra if letra is not None else "")
         self.evar.set(''.join(texto_inicial))
-        self._texto_actual = texto_inicial
+        self._texto_actual = ''.join(texto_inicial)
+
         self.entry.config(state="normal")
         self._draw_btn_env(activo=True)
         self.entry.focus()
+
+        # Mostrar nueva fila solo al lado que sigue jugando
         if t > 0 and t <= self.p_humano._tablero.filas:
-            self.p_humano._tablero.mostrar_siguiente_fila_con_animacion(t-1)
-            self.p_ia._tablero.mostrar_siguiente_fila_con_animacion(t-1)
+            if not self.gestor.humano.gano:
+                self.p_humano._tablero.mostrar_siguiente_fila_con_animacion(t - 1)
+            if not self.gestor.ia.gano:
+                self.p_ia._tablero.mostrar_siguiente_fila_con_animacion(t - 1)
         else:
-            self.p_humano._tablero.mostrar_filas_hasta(t)
-            self.p_ia._tablero.mostrar_filas_hasta(t)
+            if not self.gestor.humano.gano:
+                self.p_humano._tablero.mostrar_filas_hasta(t)
+            if not self.gestor.ia.gano:
+                self.p_ia._tablero.mostrar_filas_hasta(t)
+
         self.p_humano._lbl_env.config(text="")
         self.p_ia._lbl_env.config(text="🤖 Pensando...")
         self.lbl_estado.config(text="⏱  Escribe tu palabra y presiona ENVIAR", fg=C["gris_txt"])
-        rev = self.gestor.letras_reveladas
-        self.p_humano._tablero.limpiar_activa(t, rev)
-        self.p_ia._tablero.limpiar_activa_oculta(t, rev)
+
+        # Preparar fila activa solo al lado que sigue jugando
+        self.p_humano._tablero.limpiar_activa(t, rev, congelar=self.gestor.humano.gano)
+        if not self.gestor.ia.gano:
+            self.p_ia._tablero.limpiar_activa_oculta(t, rev, nivel=self.gestor.nivel)
+
+        # Bloquear humano si ya ganó
         if self.gestor.humano.gano:
             self._humano_ok = True
             self.entry.config(state="disabled")
             self._draw_btn_env(gris=True)
             self.p_humano._lbl_env.config(text="✅ ¡Ya adivinaste!")
-            palabra = self.gestor.palabra_secreta
-            for col, cas in enumerate(self.p_humano._tablero.casillas[t]):
-                cas.set_estado(EstadoCasilla.VERDE, palabra[col], animar=False)
+
+        # Marcar IA como lista si ya ganó
         if self.gestor.ia.gano:
-            palabra = self.gestor.palabra_secreta
-            for col, cas in enumerate(self.p_ia._tablero.casillas[t]):
-                cas.set_estado(EstadoCasilla.VERDE, palabra[col], animar=False)
+            self._ia_ok = True
+            self.p_ia._lbl_env.config(text="✅ ¡IA ya adivinó!")
 
     def _on_key(self, event):
-        if self._bloqueado: return
-        texto = self.evar.get().upper()
+        if self._bloqueado or self._humano_ok: return
+        self._reconstruir_entrada()
+
+    def _reconstruir_entrada(self):
+        """Reconstruye el texto del Entry respetando las posiciones reveladas."""
         reveladas = self.gestor.letras_reveladas
-        texto = ''.join(c for c in texto if c.isalpha())
-        nuevo_texto = []
-        for i, letra_revelada in enumerate(reveladas):
-            if letra_revelada is not None:
-                nuevo_texto.append(letra_revelada)
-            elif i < len(texto):
-                nuevo_texto.append(texto[i])
-            else:
-                nuevo_texto.append("")
-        texto_final = ''.join(nuevo_texto)
         lon = self.gestor.longitud_palabra
-        texto_final = texto_final[:lon]
+        texto_raw = self.evar.get().upper()
+
+        # Recoger solo letras que el usuario puso en posiciones NO reveladas
+        letras_libres = []
+        for i, c in enumerate(texto_raw):
+            if not c.isalpha():
+                continue
+            if i < len(reveladas) and reveladas[i] is not None:
+                continue  # saltar posiciones fijas
+            letras_libres.append(c)
+
+        # Reconstruir mezclando reveladas + letras del usuario
+        resultado = []
+        idx = 0
+        for i in range(lon):
+            if reveladas[i] is not None:
+                resultado.append(reveladas[i])
+            elif idx < len(letras_libres):
+                resultado.append(letras_libres[idx])
+                idx += 1
+            else:
+                resultado.append("")
+
+        texto_final = ''.join(resultado)
         self.evar.set(texto_final)
         self._texto_actual = texto_final
         t = self.gestor.turno_actual
@@ -864,9 +896,13 @@ class PantallaJuego(tk.Frame):
 
     def _lanzar_ia(self):
         if not self.gestor or not self.agente: return
-        if self.gestor.ia.gano:
+        if self.gestor.ia.gano or self.gestor.ia.perdio:
             self._ia_ok = True
-            self.p_ia._lbl_env.config(text="✅ ¡IA ya adivinó!")
+            if self.gestor.ia.gano:
+                self.p_ia._lbl_env.config(text="✅ ¡IA ya adivinó!")
+            # Si el humano también terminó, cerramos turno inmediatamente
+            if self._humano_ok:
+                self.after(200, self._cerrar_turno)
         else:
             self._hilo_ia = self.agente.pensar_async(self.gestor, self._cb_ia)
 
@@ -917,13 +953,22 @@ class PantallaJuego(tk.Frame):
         elif self.gestor.humano.gano:
             palabra = self.gestor.palabra_secreta
             self.p_humano._tablero.iluminar_victoria(t, palabra)
+
         if self.gestor.ia.feedbacks and not self.gestor.ia.gano:
             fb_ia  = self.gestor.ia.feedbacks[-1]
             int_ia = self.gestor.ia.intentos[-1]
-            self.p_ia._tablero.revelar(t, int_ia, fb_ia, oculto=True)
+            self.p_ia._tablero.revelar(t, int_ia, fb_ia,
+                                       oculto=True,
+                                       reveladas=self.gestor.letras_reveladas,
+                                       nivel=self.gestor.nivel)
         elif self.gestor.ia.gano:
-            palabra = self.gestor.palabra_secreta
-            self.p_ia._tablero.iluminar_victoria(t, palabra)
+            fb_ia  = self.gestor.ia.feedbacks[-1]
+            int_ia = self.gestor.ia.intentos[-1]
+            self.p_ia._tablero.revelar(t, int_ia, fb_ia,
+                                       oculto=True,
+                                       reveladas=self.gestor.letras_reveladas,
+                                       nivel=self.gestor.nivel)
+
         self.gestor.avanzar_turno()
         self.p_humano._ahorcado.set_errores(self.gestor.humano.errores)
         self.p_ia._ahorcado.set_errores(self.gestor.ia.errores)
@@ -935,13 +980,30 @@ class PantallaJuego(tk.Frame):
 
     def _sig_turno(self):
         self._prep_turno()
-        self.crono.iniciar()
+        # Solo reinicia el crono si al menos uno sigue jugando
+        if not self.gestor.humano.gano and not self.gestor.ia.gano:
+            self.crono.iniciar()
+        elif not self.gestor.humano.gano:
+            self.crono.iniciar()
+        elif not self.gestor.ia.gano:
+            self.crono.detener()
+            self.crono.reset()
         self._lanzar_ia()
 
     def _resultado_final(self):
         self._juego_terminado = True
         ganador = self.gestor.get_ganador()
         palabra = self.gestor.palabra_secreta
+
+        # Revelar la palabra completa en el último intento de la IA
+        if self.gestor.ia.intentos:
+            ultimo_ia = len(self.gestor.ia.intentos) - 1
+            for col, cas in enumerate(self.p_ia._tablero.casillas[ultimo_ia]):
+                if col < len(palabra):
+                    cas.letra = palabra[col]
+                    cas.estado = EstadoCasilla.VERDE
+                    cas._draw()
+
         ven = tk.Toplevel(self)
         ven.title("Resultado Final")
         ven.configure(bg=C["bg"])
@@ -1043,24 +1105,30 @@ class PantallaJuego(tk.Frame):
         self.on_volver()
 
     def _redirigir_tecla(self, event):
+        """Solo actúa cuando el foco NO está en el Entry, para no duplicar letras."""
         if not self.gestor or self._bloqueado or self._humano_ok: return
-        if event.keysym in ("Return","Tab","Escape","BackSpace",
-                             "Shift_L","Shift_R","Control_L","Control_R",
-                             "Alt_L","Alt_R","Super_L","Super_R",
-                             "caps","Left","Right","Up","Down",
-                             "Delete","Home","End","Prior","Next"):
-            if event.keysym == "BackSpace":
-                texto = self.evar.get()
+        if self.focus_get() == self.entry:
+            # El Entry ya procesará la tecla por su propio binding — no hacer nada
+            return
+        if event.keysym == "BackSpace":
+            texto = self.evar.get()
+            if texto:
                 self.evar.set(texto[:-1])
-                self._on_key(event)
+                self._reconstruir_entrada()
+            return
+        if event.keysym in ("Return", "Tab", "Escape",
+                             "Shift_L", "Shift_R", "Control_L", "Control_R",
+                             "Alt_L", "Alt_R", "Super_L", "Super_R",
+                             "caps", "Left", "Right", "Up", "Down",
+                             "Delete", "Home", "End", "Prior", "Next"):
             return
         if event.char and event.char.isprintable() and event.char.isalpha():
             self.entry.focus()
-            texto_actual = self.evar.get()
             lon = self.gestor.longitud_palabra if self.gestor else 5
+            texto_actual = self.evar.get()
             if len(texto_actual) < lon:
-                self.evar.set(texto_actual + event.char)
-                self._on_key(event)
+                self.evar.set(texto_actual + event.char.upper())
+                self._reconstruir_entrada()
 
 
 class App(tk.Tk):

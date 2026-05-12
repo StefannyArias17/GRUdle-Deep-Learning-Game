@@ -38,10 +38,10 @@ from typing import List, Tuple, Dict, Optional
 PAD      = 0
 LETRAS   = "abcdefghijklmnopqrstuvwxyzáéíóúüñ"
 # Usamos solo ASCII básico + ñ para tokenización simple
-LETRAS_B = "abcdefghijklmnopqrstuvwxyz"
+LETRAS_B = "abcdefghijklmnopqrstuvwxyzñ"
 CHAR_A_IDX = {c: i + 1 for i, c in enumerate(LETRAS_B)}
 IDX_A_CHAR = {v: k for k, v in CHAR_A_IDX.items()}
-VOCAB_SIZE = 27   # 26 letras + PAD
+VOCAB_SIZE = 28   # 26 letras + ñ + PAD
 ALPHA_SIZE = 26
 MAX_LEN    = 10   # longitud máxima soportada
 
@@ -53,12 +53,12 @@ VOCAB_N2    = os.path.join(MODELO_DIR, "vocab_nivel2.json")
 
 
 # ── Helpers de tokenización ───────────────────────────────────────────────────
+
 def _norm(letra: str) -> str:
-    """Normaliza letra: quita tildes, pasa a minúscula."""
+    """Normaliza letra: quita tildes, pasa a minúscula. Conserva la ñ."""
     return (letra.lower()
             .replace('á','a').replace('é','e').replace('í','i')
-            .replace('ó','o').replace('ú','u').replace('ü','u')
-            .replace('ñ','n'))
+            .replace('ó','o').replace('ú','u').replace('ü','u'))
 
 
 def patron_a_vector_n1(patron: str, max_len: int = MAX_LEN) -> List[int]:
